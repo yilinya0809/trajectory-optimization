@@ -4,6 +4,7 @@ Simple Longitudinal Dynamic Model of LC62-50B
 
 import fym
 import numpy as np
+import scipy
 from numpy import cos, sin
 
 
@@ -116,8 +117,11 @@ class simpleLC62(fym.BaseEnv):
 
     def set_dot(self, t, U):
         pos, vel = self.observe_list()
-        F_w = self.get_Fw(pos, vel)
+        F_w = self.get_Fw(pos[1], vel)
         Fx_w, Fz_w = np.ravel(F_w)
+
+        # TODO 
+        # find U(t)
         F_r, F_p, theta = np.ravel(U)
 
         R = np.array(
@@ -134,8 +138,7 @@ class simpleLC62(fym.BaseEnv):
         self.vel.dot = np.vstack((Vx_dot, Vz_dot))
 
 
-    def get_Fw(self, pos, vel):
-        x, z = np.ravel(pos)
+    def get_Fw(self, z, vel):
         Vx, Vz = np.ravel(vel)
         V = np.linalg.norm(vel)
 
@@ -165,7 +168,65 @@ class simpleLC62(fym.BaseEnv):
         return np.vstack((CL, CD, Cm))
 
 
+    def get_trim(
+        self,
+        q0={
+            "alp": 0.0,
+            "F_r": 0,
+            "F_p": 0,
+            "theta": 0,
+        },
+        fixed={"h": 10, "V": 45},
+        method="SLSQP",
+        options={"disp": False, "ftol": 1e-10},
+    ):
+        q0 = list(q0.values())
+        fixed = list(fixed.values())
 
+        Fr_max = np.polyval(self.tables["th_r"], 1) * self.g / 1000
+        Ft_max = np.interp(1, self.tables["cmd"], self.tab,es["th_p"])
+        
+        bounds = (
+            np.deg2rad((0, 20)), 
+            ((0, Fr_max)),
+            ((0, Ft_max)),
+            ((0, np.pi / 2)),
+        )
+
+        result = scipy.optimize.minimize(
+            self._trim_cost,
+            q0,
+            args=(fixed,),
+            bounds=bounds,
+            method=method,
+            options=options,
+        )
+
+        alp_trim, Fr_trim, Ft_trim, theta_trim = result.x
+
+        z_trim, V_trim = fixed
+        Vx_trim = V_trim * cos(alp_trim)
+        Vz_trim = V_trim * sin(alp_trim)
+        vel_trim = np.vstack((Vx_trim, Vz_trim))
+
+        X_trim = (z_trim, vel_trim)
+        U_trim = (Fr_trim, Ft_trim, theta_trim)
+
+        return X_trim, U_trim
+
+    def _trim_cost(self, q, fixed):
+        h, V = fixed
+        alp, F_r, F_p, theta = q
+
+        z = h
+        vel = V * np.vstack((cos(alp), sin(alp)))
+        F_w = self.get_Fw(h, vel)
+        Fx_w, Fz_w = np.ravel(F_w)
+        Vx_dot = (F_p + Fx_w) / self.m - self.g * sin(theta)
+        Vz_dot = (-F_r + Fz_w) / self.m + self.g * cos(theta)
+        vel_dot = np.vstack((Vx_dot, Vz_dot))
+
+        return vel_dot.T * vel_dot
 
 
         
