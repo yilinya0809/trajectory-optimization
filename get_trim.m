@@ -1,10 +1,11 @@
 function [X_trim, U_trim] = get_trim(h, V)
 global h V;
 LC62();
+import casadi.*
 
 Fr_max = polyval(th_r, 1) * g/1000; % 159.2089
-Fp_interp = griddedInterpolant(cmd, th_p);
-Fp_max = Fp_interp(1); % 91.5991
+Fp_interp = casadi.interpolant('Fp_interp','linear',{cmd},th_p);
+Fp_max = full(Fp_interp(1)); % 91.5991s
 
 q0 = [0.0 0 0 0];
 lb = [0.0 0 0 0];

@@ -1,4 +1,4 @@
-function X_dot = set_dot(t, Xt, Ut)
+function X_dot = set_dot(Xt, Ut)
 
 LC62();
 

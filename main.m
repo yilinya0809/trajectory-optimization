@@ -1,5 +1,7 @@
 % main
 import casadi.*
+
+clc; clear; close all;
 LC62();
 
 h = 10;
@@ -49,10 +51,11 @@ for k=1:N
    opti.subject_to(X(:,k+1)==x_next); % close the gaps
 end
 
-opti.subject_to(X(:,end) == X_trim);
+opti.subject_to(X(2:4,end) == X_trim);
 opti.subject_to(U(:,end) == U_trim);    
 
-opti.minimize(performance_index(N, X_trim, X, U));
+J = performance_index(N, X_trim, X, U);
+opti.minimize(J);
 
 opti.set_initial(X, [0;0;0;0]);
 opti.set_initial(U, [0;0;0]);
