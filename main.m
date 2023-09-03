@@ -1,4 +1,5 @@
 % main
+%% Get trim
 import casadi.*
 
 clc; clear; close all;
@@ -8,12 +9,22 @@ h = 10;
 V = 45;
 
 [X_trim, U_trim] = get_trim(h, V);
-z_trim = X_trim(1);
-vel_trim = X_trim(2:3);
 
-Fr_trim = U_trim(1);
-Fp_trim = U_trim(2);
-theta_trim = U_trim(3);
+test_X = [0; X_trim];
+test_U = U_trim;
+
+test_X_dot = set_dot(test_X, test_U);
+% z_trim = X_trim(1);
+% vel_trim = X_trim(2:3);
+% 
+% Fr_trim = U_trim(1);
+% Fp_trim = U_trim(2);
+% theta_trim = U_trim(3);
+
+
+
+
+%% Optimization
 
 global dt
 dt = 0.02;
@@ -63,6 +74,8 @@ opti.set_initial(U, zeros(3,N));
 opti.solver('ipopt');
 sol = opti.solve();
 
+
+%% Plot
 
 figure(1)
 subplot(2,1,1)

@@ -184,7 +184,7 @@ class simpleLC62(fym.BaseEnv):
         fixed = list(fixed.values())
 
         Fr_max = np.polyval(self.tables["th_r"], 1) * self.g / 1000
-        Ft_max = np.interp(1, self.tables["cmd"], self.tab,es["th_p"])
+        Ft_max = np.interp(1, self.tables["cmd"], self.tables["th_p"])
         
         bounds = (
             np.deg2rad((0, 20)), 
@@ -228,6 +228,4 @@ class simpleLC62(fym.BaseEnv):
 
         return vel_dot.T * vel_dot
 
-
-        
 
