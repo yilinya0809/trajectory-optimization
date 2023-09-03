@@ -57,8 +57,8 @@ opti.subject_to(U(:,end) == U_trim);
 J = performance_index(N, X_trim, X, U);
 opti.minimize(J);
 
-opti.set_initial(X, [0;0;0;0]);
-opti.set_initial(U, [0;0;0]);
+opti.set_initial(X, zeros(4,N+1));
+opti.set_initial(U, zeros(3,N));
 
 opti.solver('ipopt');
 sol = opti.solve();
