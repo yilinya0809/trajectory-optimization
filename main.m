@@ -8,19 +8,18 @@ LC62();
 h = 10;
 V = 45;
 
-[X_trim, U_trim] = get_trim(h, V);
+[X_trim_, U_trim] = get_trim(h, V);
 
-test_X = [0; X_trim];
-test_U = U_trim;
+X_trim = [0; X_trim_];
 
-test_X_dot = set_dot(test_X, test_U);
+test_X_dot = set_dot(X_trim, U_trim);
 
 global dt
 dt = 0.02; tf = 10; 
 N = tf / dt; t = 0:dt:tf;
 
 ptrb = 1e-9;
-[A, B] = linearization(test_X, U_trim, ptrb);
+[A, B] = linearization(X_trim, U_trim, ptrb);
 Q = diag([1,0.001,1,1]);
 R = diag([1,1,1]);
 
@@ -33,7 +32,7 @@ X_lqr = lsim(sys, u, t, X0);
 
 U_lqr = zeros(N, 3);
 for i = 1:N
-    U_lqr(i,:) = U_trim - K * X_lqr(i,:).';
+    U_lqr(i,:) = U_trim - K * (X_lqr(i,:).' - X_trim);
 end
 
 % plot LQR
