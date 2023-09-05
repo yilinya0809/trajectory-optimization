@@ -1,5 +1,5 @@
 % main
-%% Get trim
+%% Get trim & initial trajectory by LQR
 import casadi.*
 
 clc; clear; close all;
@@ -14,22 +14,63 @@ test_X = [0; X_trim];
 test_U = U_trim;
 
 test_X_dot = set_dot(test_X, test_U);
-% z_trim = X_trim(1);
-% vel_trim = X_trim(2:3);
-% 
-% Fr_trim = U_trim(1);
-% Fp_trim = U_trim(2);
-% theta_trim = U_trim(3);
+
+global dt
+dt = 0.02; tf = 10; 
+N = tf / dt; t = 0:dt:tf;
+
+ptrb = 1e-9;
+[A, B] = linearization(test_X, U_trim, ptrb);
+Q = diag([1,0.001,1,1]);
+R = diag([1,1,1]);
+
+[K, ~, ~] = lqr(A, B, Q, R);
+sys = ss(A-B*K, B, eye(4), []);
+
+X0 = [0; 10; 0; 0];
+u = zeros(length(t), 3);
+X_lqr = lsim(sys, u, t, X0);
+
+U_lqr = zeros(N, 3);
+for i = 1:N
+    U_lqr(i,:) = U_trim - K * X_lqr(i,:).';
+end
+
+% plot LQR
+figure(1)
+subplot(2,2,1)
+plot(t, X_lqr(:,1)) 
+ylabel('x')
+
+subplot(2,2,2)
+plot(t, X_lqr(:,2)) 
+ylabel('z')
+
+subplot(2,2,3)
+plot(t, X_lqr(:,3)) 
+ylabel('Vx')
+
+subplot(2,2,4)
+plot(t, X_lqr(:,4)) 
+ylabel('Vz')
 
 
+figure(2)
+subplot(3,1,1)
+plot(t(2:end), U_lqr(:,1))
+ylabel('F_r')
+
+subplot(3,1,2)
+plot(t(2:end), U_lqr(:,2))
+ylabel('F_p')
+
+subplot(3,1,3)
+plot(t(2:end), U_lqr(:,3))
+ylabel('theta')
 
 
 %% Optimization
 
-global dt
-dt = 0.02;
-tf = 10;
-N = tf / dt;
 
 opti = casadi.Opti();
 
@@ -49,7 +90,7 @@ opti.subject_to(Fr >= 0);
 opti.subject_to(Fp >= 0);
 opti.subject_to(-deg2rad(20) < theta < deg2rad(20));
 
-opti.subject_to(X(:,1) == [0;0;0;0]);
+opti.subject_to(X(:,1) == [0;10;0;0]);
 opti.subject_to(U(:,1) == [0;0;0]);
 
 
@@ -68,8 +109,41 @@ opti.subject_to(U(:,end) == U_trim);
 J = performance_index(N, X_trim, X, U);
 opti.minimize(J);
 
-opti.set_initial(X, zeros(4,N+1));
-opti.set_initial(U, zeros(3,N));
+
+% z_init_traj = zeros(1, N+1);
+% Vx_init_traj = zeros(1,N+1);
+% Vz_init_traj = zeros(1,N+1);
+% for i = 1:N+1
+%     z_init_traj(i) = 10;
+%     Vx_init_traj(i) = X_trim(2) / (N+1) * i;
+%     Vz_init_traj(i) = X_trim(3) / (N+1) * i;
+% end
+% 
+% Fr_init_traj = zeros(1, N);
+% Fp_init_traj = zeros(1, N);
+% theta_init_traj = zeros(1, N);
+% 
+% for i = 1:N
+%     Fr_init_traj(i) = U_trim(1) / N * i;
+%     Fp_init_traj(i) = U_trim(2) / N * i;
+%     theta_init_traj(i) = U_trim(3) / N * i;
+% end
+
+z_init_traj = X_lqr(:,2).';
+Vx_init_traj = X_lqr(:,3).';
+Vz_init_traj = X_lqr(:,4).';
+
+Fr_init_traj = U_lqr(:,1).';
+Fp_init_traj = U_lqr(:,2).';
+theta_init_traj = U_lqr(:,3).';
+
+
+opti.set_initial(z, z_init_traj);
+opti.set_initial(Vx, Vx_init_traj);
+opti.set_initial(Vz, Vz_init_traj);
+opti.set_initial(Fr, Fr_init_traj);
+opti.set_initial(Fp, Fp_init_traj);
+opti.set_initial(theta, theta_init_traj);
 
 opti.solver('ipopt');
 sol = opti.solve();

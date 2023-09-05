@@ -2,9 +2,9 @@ function trim_cost = trim_cost(q)
     LC62();
 
     alp = q(1); 
-    F_r = q(2);
-    F_p = q(3);
-    theta = q(4);
+    F_r = 0;
+    F_p = q(2);
+    theta = q(3);
 
     global h V;
     vel = V * [cos(alp); sin(alp)];
