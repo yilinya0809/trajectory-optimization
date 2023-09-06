@@ -16,7 +16,7 @@ function J = performance_index(N, X_trim, X, U)
         F_r = U(1, i);
         F_p = U(2, i);
     
-        energy = F_r * Vz + F_p * Vx;
+        energy = F_r * (-Vz) + F_p * Vx;
         J = J + energy;
     end
 

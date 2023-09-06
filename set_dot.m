@@ -11,8 +11,8 @@ F_r = Ut(1);
 F_p = Ut(2);
 theta = Ut(3);
 
-R = [cos(theta), -sin(theta);
-     sin(theta),  cos(theta)];
+R = [cos(theta), sin(theta);
+    -sin(theta), cos(theta)];
 
 Vx_dot = (F_p + Fx_w)/m - g*sin(theta);
 Vz_dot = (-F_r + Fz_w)/m + g*cos(theta);
