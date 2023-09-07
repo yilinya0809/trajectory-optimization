@@ -45,17 +45,18 @@ for k = 1:N
    opti.subject_to(X(:, k+1) == x_next); % close the gaps
 end    
 
-opti.subject_to(0 <= Fr <= 500);
-opti.subject_to(0 <= Fp <= 150);
+opti.subject_to(0 <= Fr <= 500);  % TODO : Fr_max
+opti.subject_to(0 <= Fp <= 150);  % TODO : Fp_max
 opti.subject_to(-deg2rad(50) <= theta <= deg2rad(50));
-opti.subject_to(X_trim(1) - 1 <= z <= X_trim(1) + 1);
+z_eps = 2;
+opti.subject_to(X_trim(1) - z_eps <= z <= X_trim(1) + z_eps);
 
 opti.subject_to(z(1) == X_trim(1));
-opti.subject_to(Vx(1) == 20);
+opti.subject_to(Vx(1) == 0);
 opti.subject_to(Vz(1) == 0);
 opti.subject_to(Fr(1) == m * g);
 opti.subject_to(Fp(1) == 0);
-opti.subject_to(theta(1) == deg2rad(-10));
+opti.subject_to(theta(1) == deg2rad(0));
 
 opti.subject_to(z(end) == X_trim(1));
 opti.subject_to(Vx(end) == X_trim(2));
