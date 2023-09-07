@@ -49,24 +49,26 @@ opti.subject_to(Fr >= 0);
 opti.subject_to(Fp >= 0);
 opti.subject_to(-deg2rad(80) <= theta <= deg2rad(80));
 
-% opti.subject_to(z(1) == -h);
-% opti.subject_to(Fr(1) == 160);
-% opti.subject_to(Fp(1) == 0);
-% opti.subject_to(theta(1) == 0);
-% 
-% opti.subject_to(z(end) == X_trim(1));
-% opti.subject_to(Vx(end) == X_trim(2));
-% opti.subject_to(Vz(end) == X_trim(3));
-% opti.subject_to(Fr(end) == U_trim(1));
-% opti.subject_to(Fp(end) == U_trim(2));
-% opti.subject_to(theta(end) == U_trim(3));
-% 
-% opti.set_initial(z(N+1), X_trim(1)/2);
-% opti.set_initial(Vx(N+1), X_trim(2)/2);
-% opti.set_initial(Vz(N+1), X_trim(3)/2);
-% opti.set_initial(Fr(N), 200);
-% opti.set_initial(Fp(N), 80);
-% opti.set_initial(theta(N), deg2rad(20));
+opti.subject_to(z(1) == X_trim(1));
+opti.subject_to(Vx(1) == 0);
+opti.subject_to(Vz(1) == 0);
+opti.subject_to(Fr(1) == 420);
+opti.subject_to(Fp(1) == 0);
+opti.subject_to(theta(1) == 0);
+ 
+opti.subject_to(z(end) == X_trim(1));
+opti.subject_to(Vx(end) == X_trim(2));
+opti.subject_to(Vz(end) == X_trim(3));
+opti.subject_to(Fr(end) == U_trim(1));
+opti.subject_to(Fp(end) == U_trim(2));
+opti.subject_to(theta(end) == U_trim(3));
+
+opti.set_initial(z, X_trim(1));
+opti.set_initial(Vx, X_trim(2)/2);
+opti.set_initial(Vz, X_trim(3)/2);
+opti.set_initial(Fr, 200);
+% opti.set_initial(Fp, U_trim(2)/2);
+% opti.set_initial(theta, U_trim(3)/2);
 
 opti.solver('ipopt');
 sol = opti.solve();
