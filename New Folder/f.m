@@ -1,23 +1,36 @@
-function dX = f(Xt, Ut)
+function dX = f(X, U)
+LC62
 
-LC62();
+z = X(1);
+vel = X(2:3);
 
-z = Xt(1);
-vel = Xt(2:3);
+Fr = U(1);
+Fp = U(2);
+theta = U(3);
 
-[Fx_w, Fz_w] = get_Fw(z, vel);
-F_r = Ut(1);
-F_p = Ut(2);
-theta = Ut(3);
+Vx = vel(1); Vz = vel(2);
+VT = norm(vel);
 
-R = [cos(theta), -sin(theta);
-     sin(theta),  cos(theta)];
+qbar = 0.5 * rho * VT^2;
+alpha = atan2(Vz, Vx);
+CLgrid = casadi.interpolant('CLGRID', 'bspline', {alp}, C_L);
+CDgrid = casadi.interpolant('CLGRID', 'bspline', {alp}, C_D);
+CL = full(CLgrid(alpha));
+CD = full(CDgrid(alpha));
+% CL = 0;
+% CD = 0;
 
-Vx_dot = (F_p + Fx_w) / m - g * sin(theta);
-Vz_dot = (-F_r + Fz_w) / m + g * cos(theta);
+Fx_w = -qbar * S * CD;
+Fz_w = -qbar * S * CL;
 
-pos_dot = R * vel;
-vel_dot = [Vx_dot; Vz_dot];
+R = [cos(theta), sin(theta);
+    -sin(theta), cos(theta)];
 
-dX = [pos_dot(2); vel_dot];
+Vx_dot = (Fp + Fx_w) / m - g * sin(theta);
+Vz_dot = (-Fr + Fz_w) / m + g * cos(theta);
+
+dpos = R * vel;
+dvel = [Vx_dot; Vz_dot];
+
+dX = [dpos(2); dvel];
 end

@@ -3,12 +3,12 @@
 clc; clear; close all;
 
 import casadi.*
-LC62();
+LC62;
 
-h = 10;
-V = 45;
+h_trim = 10;
+VT_trim = 45;
 
-[X_trim, U_trim] = get_trim(h, V);
+[X_trim, U_trim] = get_trim(h_trim, VT_trim);
 
 test_X = X_trim;
 test_U = U_trim;
@@ -19,7 +19,7 @@ test_dX = f(test_X, test_U);
 %% Optimization
 
 dt = 0.02;
-tf = 10;
+tf = 20;
 N = tf / dt;
 
 opti = casadi.Opti();
@@ -34,19 +34,19 @@ Fr = U(1,:);
 Fp = U(2,:);
 theta = U(3,:);
 
-opti.minimize(sum(Fp + Fr) + 100*sum(theta));
+opti.minimize(norm(Fp + Fr) + 100*norm(theta));
 
-for k=1:N
-   k1 = f(X(:,k),         U(:,k));
-   k2 = f(X(:,k)+dt/2*k1, U(:,k));
-   k3 = f(X(:,k)+dt/2*k2, U(:,k));
-   k4 = f(X(:,k)+dt*k3,   U(:,k));
-   x_next = X(:,k) + dt/6*(k1+2*k2+2*k3+k4);
-   opti.subject_to(X(:,k+1)==x_next); % close the gaps
+for k = 1:N
+   k1 = f(X(:, k),               U(:, k));
+   k2 = f(X(:, k) + dt / 2 * k1, U(:, k));
+   k3 = f(X(:, k) + dt / 2 * k2, U(:, k));
+   k4 = f(X(:, k) + dt * k3,     U(:, k));
+   x_next = X(:, k) + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
+   opti.subject_to(X(:, k+1) == x_next); % close the gaps
 end    
 
-% opti.subject_to(Fr >= 0);
-% opti.subject_to(Fp >= 0);
+opti.subject_to(Fr >= 0);
+opti.subject_to(Fp >= 0);
 opti.subject_to(-deg2rad(80) <= theta <= deg2rad(80));
 
 % opti.subject_to(z(1) == -h);
