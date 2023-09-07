@@ -13,12 +13,10 @@ VT = norm(vel);
 
 qbar = 0.5 * rho * VT^2;
 alpha = atan2(Vz, Vx);
-CLgrid = casadi.interpolant('CLGRID', 'bspline', {alp}, C_L);
-CDgrid = casadi.interpolant('CLGRID', 'bspline', {alp}, C_D);
-CL = full(CLgrid(alpha));
-CD = full(CDgrid(alpha));
-% CL = 0;
-% CD = 0;
+clgrid = casadi.interpolant('CLGRID', 'bspline', {alp}, C_L);
+cdgrid = casadi.interpolant('CDGRID', 'bspline', {alp}, C_D);
+CL = full(clgrid(alpha));
+CD = full(cdgrid(alpha));
 
 Fx_w = -qbar * S * CD;
 Fz_w = -qbar * S * CL;
