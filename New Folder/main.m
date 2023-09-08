@@ -18,9 +18,7 @@ test_dX = f(test_X, test_U);
 
 %% Optimization
 
-dt = 0.05;
-tf = 20;
-N = tf / dt;
+N = 100;
 
 opti = casadi.Opti();
 
@@ -34,8 +32,12 @@ Fr = U(1, :);
 Fp = U(2, :);
 theta = U(3, :);
 
-opti.minimize(norm(Fr) + norm(Fp) + 500 * norm(theta));
+T = opti.variable();
 
+W = diag([1 1 10000]);  % input weight
+opti.minimize(dot(U, W * U) + 100 * T^2);
+
+dt = T / N;
 for k = 1:N
    k1 = f(X(:, k),               U(:, k));
    k2 = f(X(:, k) + dt / 2 * k1, U(:, k));
@@ -45,11 +47,12 @@ for k = 1:N
    opti.subject_to(X(:, k+1) == x_next); % close the gaps
 end    
 
-opti.subject_to(0 <= Fr <= 500);  % TODO : Fr_max
-opti.subject_to(0 <= Fp <= 150);  % TODO : Fp_max
-opti.subject_to(-deg2rad(50) <= theta <= deg2rad(50));
-z_eps = 2;
+opti.subject_to(0 <= Fr <= 800);  % TODO : Fr_max
+opti.subject_to(0 <= Fp <= 200);  % TODO : Fp_max
+opti.subject_to(deg2rad(-50) <= theta <= deg2rad(50));  % TODO : theta_max
+z_eps = 2;  % TODO : z_eps
 opti.subject_to(X_trim(1) - z_eps <= z <= X_trim(1) + z_eps);
+opti.subject_to(0 <= T <= 20);  % TODO : T_max
 
 opti.subject_to(z(1) == X_trim(1));
 opti.subject_to(Vx(1) == 0);
@@ -71,31 +74,46 @@ opti.set_initial(Vz, X_trim(3) / 2);
 opti.set_initial(Fr, m * g / 2);
 opti.set_initial(Fp, U_trim(2) / 2);
 opti.set_initial(theta, U_trim(3) / 2);
+opti.set_initial(T, 20);
 
 opti.solver('ipopt');
 sol = opti.solve();
 
 
 %% Plot
+tf = sol.value(T);
+tspan = linspace(0, tf, N+1);
 
 figure(1)
-plot(sol.value(z));
+plot(tspan, -sol.value(z), 'k'), grid on
+xlabel('Time, s')
+ylabel('Altitude, m')
 
 
 figure(2)
 subplot(2,1,1)
-plot(sol.value(Vx));
+plot(tspan, sol.value(Vx), 'k'), grid on;
+xlabel('Time, s')
+ylabel('V_x, m/s')
 
 subplot(2,1,2)
-plot(sol.value(Vz));
+plot(tspan, sol.value(Vz), 'k'), grid on;
+xlabel('Time, s')
+ylabel('V_z, m/s')
 
 
 figure(3)
 subplot(3,1,1)
-plot(sol.value(Fr))
+plot(tspan(1:end-1), sol.value(Fr), 'k'), grid on
+xlabel('Time, s')
+ylabel('Rotor thrust, N')
 
 subplot(3,1,2)
-plot(sol.value(Fp))
+plot(tspan(1:end-1), sol.value(Fp), 'k'), grid on
+xlabel('Time, s')
+ylabel('Pusher thrust, N')
 
 subplot(3,1,3)
-plot(sol.value(theta))
+plot(tspan(1:end-1), rad2deg(sol.value(theta)), 'k'), grid on
+xlabel('Time, s')
+ylabel('\theta, deg')
