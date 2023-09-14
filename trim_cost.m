@@ -1,19 +1,19 @@
-function trim_cost = trim_cost(q)
-    LC62();
+function trim_cost = trim_cost(q, h_trim, VT_trim)
 
-    alp = q(1); 
-    F_p = q(2);
+alp_trim = q(1);
+vel_trim = VT_trim * [cos(alp_trim); sin(alp_trim)];
 
-    F_r = 0; 
-    theta = alp;
-    
-    global h V;
-    vel = V * [cos(alp); sin(alp)];
-    [Fx_w, Fz_w] = get_Fw(h, vel);
-    Vx_dot = (F_p + Fx_w)/m - g * sin(theta);
-    Vz_dot = (-F_r + Fz_w)/m + g* cos(theta);
-    vel_dot = [Vx_dot; Vz_dot];
+Fr_trim = q(2);
+Fp_trim = q(3);
+theta_trim = alp_trim;
 
-    trim_cost = vel_dot.' * vel_dot;
+X_trim = [-h_trim; vel_trim];
+U_trim = [Fr_trim; Fp_trim; theta_trim];
 
+dX = f(X_trim, U_trim);
+dvel = dX(2:end);
+
+W = diag([1 1]);
+
+trim_cost = dvel.' * W * dvel;
 end

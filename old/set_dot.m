@@ -1,6 +1,6 @@
 function X_dot = set_dot(Xt, Ut)
 
-LC62();
+LC62
 
 
 pos = Xt(1:2);
