@@ -1,189 +1,124 @@
-import fym
-import matplotlib.pyplot as plt
-import numpy as np
-from fym.utils.rot import angle2quat
-from scipy.integrate import quad
-from scipy.optimize import minimize
+from casadi import *
 
-from simpledyn import simpleLC62
+from dyn import LC62
 
+plant = LC62()
 
-class TrajOpt(fym.BaseEnv):
-    ENV_CONFIG = {
-        "fkw": {
-            "dt": 0.01,
-            "max_t": 10,
-        },
-        "plant": {
-            "init": {
-                "pos": np.vstack((0, 0, 0)),
-                "vel": np.vstack((0, 0, 0)),
-            },
-        },
-    }
+""" Get trim """
+x_trim, u_trim = plant.get_trim()
 
-    
+""" Optimization """
+N = 100  # number of control intervals
 
-    def __init__(self, env_config={}):
-        env_config = safeupdate(self.ENV_CONFIG, env_config)
-        super().__init__(**env_config["fkw"])
-        self.plant = simpleLC62(env_config["plant"])
-        self.tf = env_config["fkw"]["max_t"]
-        self.cruise_height = 10
-        self.cruise_speed = 45
+opti = Opti()  # Optimization problem
 
+# ---- decision variables ---------
+X = opti.variable(4, N + 1)  # state trajectory
+x = X[0, :]
+z = X[1, :]
+vx = X[2, :]
+vz = X[3, :]
+U = opti.variable(3, N)  # control trajectory (throttle)
+Fr = U[0, :]
+Fp = U[1, :]
+theta = U[2, :]
+T = opti.variable()
 
-    def step(self):
-        env_info, done = self.update()
-        return done, env_info
+# ---- objective          ---------
+W = diag([1, 1, 10000])
+opti.minimize(dot(U, W @ U))
 
-    def observation(self):
-        return self.observe_flat()
+dt = T / N
+for k in range(N):  # loop over control intervals
+    # Runge-Kutta 4 integration
+    k1 = plant.deriv(X[:, k], U[:, k])
+    k2 = plant.deriv(X[:, k] + dt / 2 * k1, U[:, k])
+    k3 = plant.deriv(X[:, k] + dt / 2 * k2, U[:, k])
+    k4 = plant.deriv(X[:, k] + dt * k3, U[:, k])
+    x_next = X[:, k] + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+    opti.subject_to(X[:, k + 1] == x_next)  # close the gaps
 
-    
-    def set_dot(self, t):
+# ---- input constraints --------
+opti.subject_to(opti.bounded(0, Fr, 800))
+opti.subject_to(opti.bounded(0, Fp, 200))
+opti.subject_to(opti.bounded(np.deg2rad(-50), theta, np.deg2rad(50)))
 
-        tf = self.tf
-        U = self.minimize_cost(tf)
-        self.plant.set_dot(t, U)
+# ---- state constraints --------
+# z_eps = 2
+# opti.subject_to(opti.bounded(x_trim[0] - z_eps, z, x_trim[0] + z_eps))
+opti.subject_to(-z >= 0)
+opti.subject_to(opti.bounded(0, T, 20))
 
+# ---- boundary conditions --------
+opti.subject_to(x[0] == 0)
+opti.subject_to(z[0] == 0)
+opti.subject_to(vx[0] == 0)
+opti.subject_to(vz[0] == 0)
+opti.subject_to(Fr[0] == plant.m * plant.g)
+opti.subject_to(Fp[0] == 0)
+opti.subject_to(theta[0] == np.deg2rad(0))
 
-        env_info = {
-            "t": t,
-            **self.observe_dict(),
-            "U": U,
-        }
+opti.subject_to(z[-1] == x_trim[1])
+opti.subject_to(vx[-1] == x_trim[2])
+opti.subject_to(vz[-1] == x_trim[3])
+opti.subject_to(Fr[-1] == u_trim[0])
+opti.subject_to(Fp[-1] == u_trim[1])
+opti.subject_to(theta[-1] == u_trim[2])
 
-        return env_info
+# ---- initial values for solver ---
+opti.set_initial(z, x_trim[1])
+opti.set_initial(vx, x_trim[2] / 2)
+opti.set_initial(vz, x_trim[3] / 2)
+opti.set_initial(Fr, plant.m * plant.g / 2)
+opti.set_initial(Fp, u_trim[1] / 2)
+opti.set_initial(theta, u_trim[2] / 2)
+opti.set_initial(T, 20)
 
-    def minimize_cost(
-        self,
-        tf,
-        U0={"F_r": 0, "F_p": 0, "theta": 0},
-        method="SLSQP",
-        options={"disp": False, "ftol": 1e-10},
-    ):
+# ---- solve NLP              ------
+opti.solver("ipopt")  # set numerical backend
+sol = opti.solve()  # actual solve
 
-        U0 = list(U0.values())
-        result = minimize(
-            self.performance_index,
-            U0,
-            args=(tf,),
-            method=method,
-            options=options,
-        )
-        U = np.vstack((result.x))
-        return U
+# ---- post-processing        ------
+from pylab import figure, grid, legend, plot, show, subplot, xlabel, ylabel
 
-    def performance_index(self, U, tf):
-        energy = self.energy(U)
-        J = quad(energy, 0, tf)
-        return J
+tf = sol.value(T)
+tspan = linspace(0, tf, N + 1)
 
-    def energy(self, U):
-       pos, vel = self.observe_list()
-       Vx, Vz = np.ravel(vel)
+figure()
+subplot(2, 1, 1)
+plot(tspan, sol.value(x), "k")
+ylabel("$x$, m")
+grid()
+subplot(2, 1, 2)
+plot(tspan, -sol.value(z), "k")
+ylabel("$h$, m")
+xlabel("Time, s")
+grid()
 
-       F_r, F_p, theta = np.ravel(U)
+figure()
+subplot(2, 1, 1)
+plot(tspan, sol.value(vx), "k")
+ylabel("$v_x$, m/s")
+grid()
+subplot(2, 1, 2)
+plot(tspan, sol.value(vz), "k")
+ylabel("$v_z$, m/s")
+xlabel("Time, s")
+grid()
 
-       P_r = F_r * Vz
-       P_p = F_p * Vx
-       P = P_r + P_p
-       return P
-    
+figure()
+subplot(3, 1, 1)
+plot(tspan[:-1], sol.value(Fr), "k")
+ylabel("Rotor, N")
+grid()
+subplot(3, 1, 2)
+plot(tspan[:-1], sol.value(Fp), "k")
+ylabel("Pusher, N")
+grid()
+subplot(3, 1, 3)
+plot(tspan[:-1], np.rad2deg(sol.value(theta)), "k")
+ylabel(r"$\theta$, deg")
+xlabel("Time, s")
+grid()
 
-def run():
-    env = TrajOpt()
-    flogger = fym.Logger("data.h5")
-
-    env.reset()
-    try:
-        while True:
-            env.render()
-
-            done, env_info = env.step()
-            flogger.record(env=env_info)
-
-            if done:
-                break
-
-    finally:
-        flogger.close()
-        plot()
-
-
-def plot():
-    data = fym.load("data.h5")["env"]
-
-    """ Figure 1 - States """
-    fig, axes = plt.subplots(2, 2, squeeze=False, sharex=True)
-
-    """ Column 1 - States: Position """
-    ax = axes[0, 0]
-    ax.plot(data["t"], data["plant"]["pos"][:, 0].squeeze(-1), "k-")
-    ax.set_ylabel(r"$x$, m")
-    ax.set_xlabel("Time, sec")
-    ax.set_xlim(data["t"][0], data["t"][-1])
-
-    ax = axes[1, 0]
-    ax.plot(data["t"], data["plant"]["pos"][:, 1].squeeze(-1), "k-")
-    ax.set_ylabel(r"$y$, m")
-    ax.set_xlabel("Time, sec")
-    ax.set_xlim(data["t"][0], data["t"][-1])
-
-    """ Column 2 - States: Velocity """
-    ax = axes[0, 1]
-    ax.plot(data["t"], data["plant"]["vel"][:, 0].squeeze(-1), "k-")
-    ax.set_ylabel(r"$Vx$, m")
-    ax.set_xlabel("Time, sec")
-    ax.set_xlim(data["t"][0], data["t"][-1])
-
-    ax = axes[1, 1]
-    ax.plot(data["t"], data["plant"]["vel"][:, 1].squeeze(-1), "k-")
-    ax.set_ylabel(r"$Vy$, m")
-    ax.set_xlabel("Time, sec")
-    ax.set_xlim(data["t"][0], data["t"][-1])
-
-
-    """ Figure 2 - Optimization Variables """
-    fig, axes = plt.subplots(3, 1, squeeze=False, sharex=True)
-
-    ax = axes[0, 0]
-    ax.plot(data["t"], data["U"][:, 0].squeeze(-1), "k-")
-    ax.set_ylabel(r"$F_r$, N")
-    ax.set_xlabel("Time, sec")
-    ax.set_xlim(data["t"][0], data["t"][-1])
-
-    ax = axes[1, 0]
-    ax.plot(data["t"], data["U"][:, 1].squeeze(-1), "k-")
-    ax.set_ylabel(r"$F_p$, N")
-    ax.set_xlabel("Time, sec")
-    ax.set_xlim(data["t"][0], data["t"][-1])
-
-    ax = axes[2, 0]
-    ax.plot(data["t"], data["U"][:, 2].squeeze(-1), "k-")
-    ax.set_ylabel(r"$\theta$, deg")
-    ax.set_xlabel("Time, sec")
-    ax.set_xlim(data["t"][0], data["t"][-1])
-
-    
-    plt.show()
-
-
-def main(args):
-    if args.only_plot:
-        plot()
-        return
-    else:
-        run()
-        if args.plot:
-            plot()
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--plot", action="store_true")
-    parser.add_argument("-P", "--only-plot", action="store_true")
-    args = parser.parse_args()
-    main(args)
-
+show()
