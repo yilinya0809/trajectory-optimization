@@ -1,3 +1,4 @@
+import numpy as np
 from casadi import *
 
 from dyn import LC62
@@ -5,7 +6,7 @@ from dyn import LC62
 plant = LC62()
 
 """ Get trim """
-x_trim, u_trim = plant.get_trim()
+x_trim, u_trim = plant.get_trim(fixed={"h": 10, "VT": 45})
 
 """ Optimization """
 N = 100  # number of control intervals
@@ -25,8 +26,8 @@ theta = U[2, :]
 T = opti.variable()
 
 # ---- objective          ---------
-W = diag([1, 1, 10000])
-opti.minimize(dot(U, W @ U))
+W = np.diag([1, 1, 10000])
+opti.minimize(dot(U, W @ U) + 100 * T**2)
 
 dt = T / N
 for k in range(N):  # loop over control intervals
@@ -39,19 +40,21 @@ for k in range(N):  # loop over control intervals
     opti.subject_to(X[:, k + 1] == x_next)  # close the gaps
 
 # ---- input constraints --------
-opti.subject_to(opti.bounded(0, Fr, 800))
-opti.subject_to(opti.bounded(0, Fp, 200))
+Fr_max = 6 * plant.th_r_max # 955.2534
+Fp_max = 2 * plant.th_p_max # 183.1982
+opti.subject_to(opti.bounded(0, Fr, Fr_max))
+opti.subject_to(opti.bounded(0, Fp, Fp_max))
 opti.subject_to(opti.bounded(np.deg2rad(-50), theta, np.deg2rad(50)))
 
 # ---- state constraints --------
-# z_eps = 2
-# opti.subject_to(opti.bounded(x_trim[0] - z_eps, z, x_trim[0] + z_eps))
-opti.subject_to(-z >= 0)
+z_eps = 2
+opti.subject_to(opti.bounded(x_trim[1] - z_eps, z, x_trim[1] + z_eps))
+# opti.subject_to(-z >= 0)
 opti.subject_to(opti.bounded(0, T, 20))
 
 # ---- boundary conditions --------
 opti.subject_to(x[0] == 0)
-opti.subject_to(z[0] == 0)
+opti.subject_to(z[0] == -10)
 opti.subject_to(vx[0] == 0)
 opti.subject_to(vz[0] == 0)
 opti.subject_to(Fr[0] == plant.m * plant.g)

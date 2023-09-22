@@ -24,13 +24,14 @@ class LC62:
     def deriv(self, x, u):
         g = self.g
         m = self.m
-        pos, vel = x[:2], x[2:]
+        pos, vel = x[0], x[1:]
         Fr, Fp, theta = u[0], u[1], u[2]
         Fx, Fz = self.B_Fuselage(pos, vel)
-        dpos = vertcat(
-            cos(theta) * vel[0] + sin(theta) * vel[1],
-            -sin(theta) * vel[0] + cos(theta) * vel[1],
-        )
+        # dpos = vertcat(
+        #     cos(theta) * vel[0] + sin(theta) * vel[1],
+        #     -sin(theta) * vel[0] + cos(theta) * vel[1],
+        # )
+        dpos = -sin(theta) * vel[0] + cos(theta) * vel[1]
         dvel = vertcat((Fp + Fx) / m - g * sin(theta), (-Fr + Fz) / m + g * cos(theta))
         return vertcat(dpos, dvel)
 
@@ -47,16 +48,14 @@ class LC62:
         return Fx, Fz
 
     def aero_coeff(self, alp):
-        CL = 0
-        CD = 0
-        # clgrid = interpolant(
-        #     "CLGRID", "bspline", [self.tables["alp"]], self.tables["CL"]
-        # )
-        # cdgrid = interpolant(
-        #     "CDGRID", "bspline", [self.tables["alp"]], self.tables["CD"]
-        # )
-        # CL = clgrid(alp)
-        # CD = cdgrid(alp)
+        clgrid = interpolant(
+            "CLGRID", "bspline", [self.tables["alp"]], self.tables["CL"]
+        )
+        cdgrid = interpolant(
+            "CDGRID", "bspline", [self.tables["alp"]], self.tables["CD"]
+        )
+        CL = clgrid(alp)
+        CD = cdgrid(alp)
         return CL, CD
 
     def get_trim(
@@ -91,7 +90,8 @@ class LC62:
             alp, Fr, Fp = 0, self.m * self.g, 0
         else:
             alp, Fr, Fp = result.x
-        pos_trim = np.vstack((0, -h))
+        # pos_trim = np.vstack((0, -h))
+        pos_trim = -h
         vel_trim = np.vstack((VT * cos(alp), VT * sin(alp)))
 
         x_trim = np.vstack((pos_trim, vel_trim))
@@ -101,13 +101,15 @@ class LC62:
     def _trim_cost(self, z, fixed):
         h, VT = fixed
         alp, Fr, Fp = z
-        pos_trim = np.vstack((0, -h))
+        # pos_trim = np.vstack((0, -h))
+        pos_trim = -h
         vel_trim = np.vstack((VT * cos(alp), VT * sin(alp)))
 
         x_trim = np.vstack((pos_trim, vel_trim))
         u_trim = np.vstack((Fr, Fp, alp))
 
         dx = self.deriv(x_trim, u_trim)
-        dvel = dx[2:]
+        # dvel = dx[2:]
+        dvel = dx[1:]
         weight = np.diag([1, 1])
         return dvel.T @ weight @ dvel
